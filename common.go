@@ -17,6 +17,7 @@ type ServerConfig struct {
 
 var emptyConfig ServerConfig
 
+var _hasInited bool
 func initDefaultConfig() {
 	emptyConfig.DebugEnable = true
 	emptyConfig.C2SPort = "0.0.0.0:5222"
@@ -26,7 +27,10 @@ func initDefaultConfig() {
 	emptyConfig.Host = ""
 }
 
-func defaultConfig() *ServerConfig {
+func DefaultConfig() *ServerConfig {
+	if !_hasInited {
+		initDefaultConfig()
+	}
 	return &emptyConfig
 }
 

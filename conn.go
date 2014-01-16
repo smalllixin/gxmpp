@@ -8,12 +8,16 @@ import (
 	"log"
 	"net"
 	"time"
+	"fmt"
 )
+
+var _ = fmt.Println
 
 type Server struct {
 	cfg *ServerConfig
 	quitCh chan byte
 	listenAddr *net.TCPAddr
+	idg IdGen	//id generator
 }
 
 func NewServer(cfg *ServerConfig) *Server {
@@ -23,6 +27,7 @@ func NewServer(cfg *ServerConfig) *Server {
 func (s *Server)init(cfg *ServerConfig) *Server {
 	s.cfg = cfg
 	s.quitCh = make(chan byte)
+	s.idg = NewBase64IdGen()
 	return s
 }
 

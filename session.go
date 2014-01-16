@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"errors"
+	"bytes"
 )
 
 var _ = fmt.Println
@@ -17,6 +18,7 @@ var _ = errors.New
 
 type Session struct {
 	conn net.Conn
+	w io.Writer 	//to client writer
 	srv *Server
 	CallinTime int64 //unix timestamp
 	dec *xml.Decoder
@@ -30,8 +32,10 @@ func NewSession(srv *Server, conn net.Conn) *Session{
 	s.CallinTime = time.Now().Unix()
 	if srv.cfg.DebugEnable {
 		s.dec = xml.NewDecoder(readTunnel{s.conn, os.Stdout})
+		s.w = writeTunnel{s.conn, os.Stdout}
 	} else {
 		s.dec = xml.NewDecoder(s.conn)
+		s.w = s.conn
 	}
 	s.enc = xml.NewEncoder(s.conn)
 	return s
@@ -53,8 +57,8 @@ func (s *Session) stanzaStream() error {
 	ele, err := nextStart(s.dec)
 	if err != nil {
 		log.Fatalln(err)
-		fmt.Fprint(s.conn, xmppErr(xmppErrNotWellFormed))
-		fmt.Fprint(s.conn, xmppStreamEnd)
+		fmt.Fprint(s.w, xmppErr(xmppErrNotWellFormed))
+		fmt.Fprint(s.w, xmppStreamEnd)
 		return err
 	}
 	
@@ -64,32 +68,50 @@ func (s *Session) stanzaStream() error {
 		return err
 	}
 	if st.Name.Space != xmppNsStream && st.Name.Local != "stream" {
-		fmt.Fprint(s.conn, xmppErr(xmppErrInvalidNamespace))
-		fmt.Fprint(s.conn, xmppStreamEnd)
+		fmt.Fprint(s.w, xmppErr(xmppErrInvalidNamespace))
+		fmt.Fprint(s.w, xmppStreamEnd)
 		return nil
 	}
 	if s.srv.cfg.Host != "" && s.srv.cfg.Host != st.To {
 		log.Fatalln("Stream host does not match server")
-		fmt.Fprint(s.conn, xmppErr(xmppErrHostUnknown))
-		fmt.Fprint(s.conn, xmppStreamEnd)
+		fmt.Fprint(s.w, xmppErr(xmppErrHostUnknown))
+		fmt.Fprint(s.w, xmppStreamEnd)
 		return errors.New("host not match")
 	}
 
 	if st.Version != "1.0" {
 		//this compare is not valid.
 		//TBD: Refer RFC6120 4.7.5. version
-		fmt.Fprint(s.conn, xmppErr(xmppErrUnsupportedVersion))
-		fmt.Fprint(s.conn, xmppStreamEnd)
+		fmt.Fprint(s.w, xmppErr(xmppErrUnsupportedVersion))
+		fmt.Fprint(s.w, xmppStreamEnd)
 		return nil
 	}
+	//Response Stream
+	streamId := s.srv.idg.NextId()
 
-	fmt.Printf("%v\n", st)
+	fmt.Fprintf(s.w, "<?xml version='1.0'?><stream:stream "+
+       "from='%s' id='%s' to='juliet@im.example.com' version='1.0' "+
+       "xml:lang='en' xmlns='jabber:client' "+
+       "xmlns:stream='http://etherx.jabber.org/streams'>", escapeXml(s.srv.cfg.Host),
+       	streamId)
+
+	//fmt.Printf("%v\n", st)
 	
 	return nil
 }
 
 func (s *Session) TalingSeconds() int64 {
 	return time.Now().Unix() - s.CallinTime
+}
+
+func escapeXml(s string) string {
+	buf := new(bytes.Buffer)
+	buf.Grow(len(s))
+	err := xml.EscapeText(buf, []byte(s))
+	if err != nil {
+		panic(err)
+	}
+	return buf.String()
 }
 
 // Scan XML token stream to find next StartElement.
@@ -160,4 +182,21 @@ func (t readTunnel) Read(p []byte) (n int, err error) {
         t.w.Write([]byte("\n"))
     }
     return n, err
+}
+
+/*
+A writer tunnel:
+For debug
+*/
+type writeTunnel struct {
+	w io.Writer
+	reWriter io.Writer
+}
+func (t writeTunnel) Write(p []byte) (n int, err error) {
+	n, err = t.w.Write(p)
+	if n > 0 {
+		t.reWriter.Write(p[0:n])
+		t.w.Write([]byte("\n"))
+	}
+	return n, err
 }

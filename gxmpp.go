@@ -6,9 +6,8 @@ import (
 
 func Start(cfg *ServerConfig) (*Server, error) {
 	log.Println("Start *gxmpp* Server\n")
-	initDefaultConfig()
 	if cfg == nil {
-		cfg = defaultConfig() 
+		cfg = DefaultConfig() 
 	}
 	s := NewServer(cfg)
 	err := s.Start()
