@@ -26,7 +26,7 @@ type Session struct {
 	CallinTime int64 //unix timestamp
 	tlsFeatureSuccess bool
 	saslFeatureSuccess bool
-	
+
 }
 
 func NewSession(srv *Server, conn net.Conn) *Session{
@@ -100,9 +100,11 @@ func (s *Session) talkingFeatures() error {
 		sasl := NewSasl(s)
 		if err := sasl.talking(); err != nil { return err }
 
+		fmt.Println("=====in loop====")
 		for {
 			_,err := nextStart(s.dec)
 			if err != nil {
+				fmt.Println("=====in loop error====")
 				return err
 			}
 		}

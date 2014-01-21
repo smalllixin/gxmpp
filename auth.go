@@ -4,6 +4,8 @@ import (
 )
 
 type AuthProvider interface {
-	func GetUserPassword(username) (string, error)
+	GetUserPassword(username string) (string, error)
+	//authcid usually is username[authentication]. authzid is [authorization id]
+	Authorize(authcid, authzid string) (bool, error)
 }
 

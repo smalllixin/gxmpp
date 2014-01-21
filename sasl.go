@@ -26,10 +26,12 @@ func NewSasl(session *Session) *Sasl {
 }
 
 func (s *Sasl) talking() error {
-	supportMechanisms := []string {"SCRAM-SHA-1-PLUS", "SCRAM-SHA-1", "DIGEST-MD5"}
+	supportMechanisms := []string {"PLAIN",",SCRAM-SHA-1-PLUS", "SCRAM-SHA-1", "DIGEST-MD5"}
+	/*
 	if s.session.tlsFeatureSuccess {
 		supportMechanisms = append(supportMechanisms, "PLAIN")
 	}
+	*/
 	mechanismsStreamFeature := _mechanismBuilder(supportMechanisms)
 	_, err := fmt.Fprint(s.session.w, mechanismsStreamFeature)
 	if err != nil { return err }
@@ -56,6 +58,9 @@ func (s *Sasl) talking() error {
 			return err
 		}
 	case "PLAIN":
+		if err = s.auth_PLAIN(authEle); err != nil {
+			return err
+		}
 	default:
 
 	}
@@ -77,7 +82,37 @@ func (s *Sasl) talking() error {
 	return nil
 }
 
-func (s *Sasl) auth_PLAIN() error {
+func (s *Sasl) auth_PLAIN(authEle *saslAuth) error {
+	message, err := base64.StdEncoding.DecodeString(authEle.Body)
+	if err != nil {
+		fmt.Fprint(s.session.w, saslError(saslErrIncorrectEncoding))
+		return err
+	}
+	splitMsg := strings.Split(string(message),"\x00")
+	if len(splitMsg) != 3 {
+		fmt.Fprint(s.session.w, saslError(saslErrIncorrectEncoding))
+		return errors.New("rfc4616: sasl PLAIN encoding incorrect")
+	}
+
+	authzid := splitMsg[0]
+	authcid := splitMsg[1]
+	passwd := splitMsg[2]
+	if authcid == "" || passwd == "" {
+		fmt.Fprintf(s.session.w, saslError(saslErrNotAuthorized))
+		return errors.New("auth failure")
+	}
+
+	if md5hash("sa123456") == md5hash(passwd) {
+		//TBD Authorize test here
+		_ = authzid
+		fmt.Fprint(s.session.w,"<success xmlns='urn:ietf:params:xml:ns:xmpp-sasl'/>")
+		s.session.saslFeatureSuccess = true
+		fmt.Println("auth_PLAIN success")
+	} else {
+		fmt.Fprintf(s.session.w, saslError(saslErrNotAuthorized))
+		return errors.New("auth failure")
+	}
+
 	return nil
 }
 
@@ -108,13 +143,13 @@ func (s *Sasl) auth_DIGEST_MD5() error {
 	case *saslResponse:
 		respEle = ele.(*saslResponse)
 	case *saslAbort:
-		fmt.Fprint(s.session.w, saslError("aborted"))
+		fmt.Fprint(s.session.w, saslError(saslErrAborted))
 		return err
 	}
 
 	response, err := base64.StdEncoding.DecodeString(respEle.Body)
 	if err != nil {
-		fmt.Fprint(s.session.w, saslError("incorrect-encoding"))
+		fmt.Fprint(s.session.w, saslError(saslErrIncorrectEncoding))
 		return err
 	}
 
@@ -141,11 +176,7 @@ func (s *Sasl) auth_DIGEST_MD5() error {
 			tokens[kv[0]] = kv[1]
 		}
 	}
-	// if _, ok := tokens["nc"]; !ok {
-	// 	tokens["nc"] = "00000001"
-	// }
 
-	//
 	if tokens["digest-uri"] != ("xmpp/"+s.srvCfg.Host) {
 		//TBD sasl error response
 		return errors.New("digest-uri not expected")
@@ -161,10 +192,10 @@ func (s *Sasl) auth_DIGEST_MD5() error {
 	}
 	serverDigest := _DIGEST_MD5_response_value(tokens["username"], tokens["realm"], "sa123456",
 		nonce, tokens["nc"], tokens["cnonce"], tokens["digest-uri"], tokens["authzid"], false)
-	fmt.Println("-------Digest Compare--------")
-	fmt.Printf("client:%s\n", tokens["response"])
-	fmt.Printf("server:%s\n", serverDigest)
-	fmt.Println("-------END Digest Compare--------")
+	// fmt.Println("-------Digest Compare--------")
+	// fmt.Printf("client:%s\n", tokens["response"])
+	// fmt.Printf("server:%s\n", serverDigest)
+	// fmt.Println("-------END Digest Compare--------")
 	if tokens["response"] == serverDigest {
 		
 		//auth success
@@ -186,7 +217,7 @@ func (s *Sasl) auth_DIGEST_MD5() error {
 		case *saslResponse:
 			respEle = ele.(*saslResponse)
 		case *saslAbort:
-			fmt.Fprintf(s.session.w, saslError("aborted"))
+			fmt.Fprintf(s.session.w, saslError(saslErrAborted))
 			return err
 		}
 		
@@ -198,7 +229,7 @@ func (s *Sasl) auth_DIGEST_MD5() error {
 		    <invalid-authzid/>
 		</failure>
 		*/
-		fmt.Fprintf(s.session.w, saslError("<not-authorized/>")
+		fmt.Fprintf(s.session.w, saslError(saslErrNotAuthorized))
 		return errors.New("auth failure")//TBD. loop auth instead just close
 	}
 
@@ -219,10 +250,10 @@ func _DIGEST_MD5_response_value(username, realm, passwd, nonce, nc, cnonce, dige
 		h.Write([]byte(text))
 		return h.Sum(nil)
 	}
-	fmt.Printf("\n====compute\n")
-	fmt.Println(username, realm, passwd, nonce, nc, cnonce, digestUri)
-	fmt.Println(string(h(username+":"+realm+":"+passwd)))
-	fmt.Printf("\n====end compute\n")
+	// fmt.Printf("\n====compute\n")
+	// fmt.Println(username, realm, passwd, nonce, nc, cnonce, digestUri)
+	// fmt.Println(string(h(username+":"+realm+":"+passwd)))
+	// fmt.Printf("\n====end compute\n")
 	var A1,A2 string
 	if authzid == "" {
 		A1 = string(h(username+":"+realm+":"+passwd))+":"+nonce+":"+cnonce
@@ -268,7 +299,7 @@ func saslDigestChallenge(realm, nonce, qop, charset, algorithm string) string {
 }
 
 func saslError(name string) string {
-	return fmt.Sprintf("<failure xmlns='urn:ietf:params:xml:ns:xmpp-sasl'><%s/></failure>"
+	return fmt.Sprintf("<failure xmlns='urn:ietf:params:xml:ns:xmpp-sasl'><%s/></failure>",name)
 }
 
 

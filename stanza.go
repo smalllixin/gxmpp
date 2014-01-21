@@ -9,6 +9,8 @@ import (
   "io"
 )
 
+var _ = io.EOF
+
 type streamStart struct {
 	Name xml.Name `xml:"http://etherx.jabber.org/streams stream"`
 	From string `xml:"from,attr"`	//From 
@@ -54,8 +56,8 @@ func xmppErr(errName string) string {
 }
 
 const (
-	//Stream Errors Are Unrecoverable
-	//rfc6120
+    //Stream Errors Are Unrecoverable
+    //rfc6120
 
     //4.9.3.1.
     xmppErrBadFormat = "bad-format"
@@ -85,7 +87,7 @@ const (
     xmppErrInvalidFrom = "invalid-from"
 
     //4.9.3.10. invalid-namespace
-	xmppErrInvalidNamespace = "invalid-namespace"
+    xmppErrInvalidNamespace = "invalid-namespace"
 
     //4.9.3.11. invalid-xml
     xmppInvalidXml = "invalid-xml"
@@ -96,9 +98,9 @@ const (
     //4.9.3.13. not-well-formed
     xmppErrNotWellFormed = "not-well-formed"
 
-	//4.9.3.14. policy-violation. 
-	//NOTE: The reason of this error need parameterize. And this is not right yet.
-	xmppPolicyViolation = "policy-violation"
+    //4.9.3.14. policy-violation. 
+    //NOTE: The reason of this error need parameterize. And this is not right yet.
+    xmppPolicyViolation = "policy-violation"
 
     //4.9.3.15. remote-connection-failed
     xmppRemoteConnectionFailed = "remote-connection-failed"
@@ -125,6 +127,20 @@ const (
    	xmppErrUnsupportedVersion = "unsupported-version"
    	//4.9.4. Application-Specific Conditions
    	//TBD
+)
+
+const (
+    saslErrAborted = "abort"
+    saslErrAccountDisabled = "account-disabled"
+    saslErrCredentialsExpired = "credentials-expired"
+    saslErrEncryptionRequired = "encryption-required"
+    saslErrIncorrectEncoding = "incorrect-encoding"
+    saslErrInvalidAuthzid = "invalid-authzid"
+    saslErrInvalidMechanism = "invalid-mechanism"
+    saslErrMalformedRequest = "malformed-request"
+    saslErrMechanismTooWeak = "mechanism-too-weak"
+    saslErrNotAuthorized = "not-authorized"
+    saslErrTemporaryAuthFailure = "temporary-auth-failure"
 )
 
 
@@ -209,7 +225,7 @@ func next(p *xml.Decoder) (xml.Name, interface{}, error) {
 func nextStart(p *xml.Decoder) (xml.StartElement, error) {
   for {
     t, err := p.Token()
-    if err != nil && err != io.EOF {
+    if err != nil/* && err != io.EOF */{
       return xml.StartElement{}, err
     }
     switch t := t.(type) {
