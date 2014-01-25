@@ -26,8 +26,10 @@ type Session struct {
 	CallinTime int64 //unix timestamp
 	tlsFeatureSuccess bool
 	saslFeatureSuccess bool
-
+	randMaker *RandomMaker
 }
+
+var _randMaker *RandomMaker
 
 func NewSession(srv *Server, conn net.Conn) *Session{
 	s := new(Session)
@@ -44,6 +46,11 @@ func NewSession(srv *Server, conn net.Conn) *Session{
 	s.enc = xml.NewEncoder(s.conn)
 	s.tlsFeatureSuccess = false
 	s.saslFeatureSuccess = false
+
+	if _randMaker == nil {
+		_randMaker = NewRandomMaker()
+	}
+	s.randMaker = _randMaker
 	return s
 }
 

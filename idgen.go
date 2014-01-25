@@ -1,7 +1,6 @@
 package gxmpp
 
 import (
-	"math/rand"
 	"time"
 	"encoding/base64"
 )
@@ -14,31 +13,13 @@ type IdGen interface {
 }
 
 type Base64IdGen struct {
-	randSrc rand.Source
+	randMaker *RandomMaker
 }
 
 func NewBase64IdGen() IdGen {
 	ig := new(Base64IdGen)
-	ig.randSrc = rand.NewSource(time.Now().UnixNano())
+	ig.randMaker = NewRandomMaker()
 	return ig
-}
-
-// Read satisfies io.Reader
-func (s *Base64IdGen) Read(p []byte) (n int, err error) {
-    todo := len(p)
-    offset := 0
-    for {
-        val := int64(s.randSrc.Int63())
-        for i := 0; i < 8; i++ {
-                p[offset] = byte(val)
-                todo--
-                if todo == 0 {
-                        return len(p), nil
-                }
-                offset++
-                val >>= 8
-        }
-    }
 }
 
 func (s *Base64IdGen) NextId() string {
@@ -49,6 +30,6 @@ func (s *Base64IdGen) NextId() string {
 		buf[i] = byte(val)
 		val >>= 8
 	}
-	s.Read(buf[8:])
+	s.randMaker.Read(buf[8:])
 	return base64.URLEncoding.EncodeToString(buf)
 }
