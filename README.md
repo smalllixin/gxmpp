@@ -27,3 +27,5 @@ Dirty code and modify structure in every commitment.
 ### Steps generate certificate
 openssl genrsa 1024 -out gxmpp_test.key
 openssl req -new -x509 -nodes -sha256 -days 3650 -key gxmpp_test.key > gxmpp_509.pem
+
+# For TLS 
