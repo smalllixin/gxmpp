@@ -19,6 +19,12 @@ type streamStart struct {
 	Lang string `xml:"xml lang,attr"`
 	NS string `xml:"xmlns,attr"`
 }
+type tlsStartTLS struct {
+	Name xml.Name `xml:urn:ietf:params:xml:ns:xmpp-tls starttls"`
+}
+type tlsProceed struct {
+	Name xml.Name `xml:urn:ietf:params:xml:ns:xmpp-tls proceed`
+}
 
 type saslAuth struct {
   Name xml.Name `xml:"urn:ietf:params:xml:ns:xmpp-sasl auth"`
@@ -174,10 +180,12 @@ func next(p *xml.Decoder) (xml.Name, interface{}, error) {
     nv = &streamFeatures{}
   case xmppNsStream + " error":
     nv = &streamError{}
+	*/
   case xmppNsTLS + " starttls":
     nv = &tlsStartTLS{}
   case xmppNsTLS + " proceed":
     nv = &tlsProceed{}
+	/*
   case xmppNsTLS + " failure":
     nv = &tlsFailure{}
     */

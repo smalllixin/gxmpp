@@ -41,24 +41,28 @@ TBD: mess error handle
 type Sasl struct {
 	session *Session
 	srvCfg *ServerConfig
+	supportedMechanisms []string
 }
 
 func NewSasl(session *Session) *Sasl {
 	s := new(Sasl)
 	s.session = session
 	s.srvCfg = session.srv.cfg
+	s.supportedMechanisms = []string {"PLAIN", "SCRAM-SHA-1", "DIGEST-MD5"}
 	return s
 }
 
 func (s *Sasl) talking() error {
-	supportMechanisms := []string {"PLAIN", "SCRAM-SHA-1", "DIGEST-MD5"}
 	/*
 	if s.session.tlsFeatureSuccess {
 		supportMechanisms = append(supportMechanisms, "PLAIN")
 	}
 	*/
-	mechanismsStreamFeature := _mechanismBuilder(supportMechanisms)
+	mechanismsStreamFeature := mechanismBuilder()
 	_, err := fmt.Fprint(s.session.w, mechanismsStreamFeature)
+	if err != nil { return err }
+
+	err: = starttls()
 	if err != nil { return err }
 	//client will send <auth/>
 	//<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl'
@@ -109,6 +113,26 @@ func (s *Sasl) talking() error {
    </failure>
 	*/
 	return nil
+}
+
+func (s *Sasl) starttls() error {
+	if !s.srvCfg.UseTls || s.srvCfg.tlsFeatureSuccess {
+		return nil
+	}
+
+	_, ele, err := next(s.session.dec)
+	if err != nil {
+		log.Println(err);
+		return err
+	}
+
+	switch ele.(type) {
+		default:
+			err = errors.New("Expected <starttls> element")
+			log.Println(err)
+			return err
+		case *tlsStartTLS:
+	}
 }
 
 func (s *Sasl) auth_PLAIN(authEle *saslAuth) error {
@@ -513,6 +537,28 @@ func (s *Sasl) gen_nonce() string {
 	return base64.StdEncoding.EncodeToString(nonce)
 }
 
+func (s *Sasl) mechanismBuilder() string {
+	var buffer bytes.Buffer
+	buffer.WriteString("<stream:features>")
+	if (s.srvCfg.UseTls && !s.srvCfg.tlsFeatureSuccess) {
+		buffer.WriteString("<starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'>")
+		buffer.WriteString("<required/>")
+		buffer.WriteString("</starttls>")
+		for i := 0; i < len(s.supportedMechanisms); i ++ {
+			buffer.WriteString("<mechanism>"+s.supportedMechanisms[i]+"</mechanism>")
+		}
+
+	} else {
+		buffer.WriteString("<mechanisms xmlns='urn:ietf:params:xml:ns:xmpp-sasl'>")
+		for i := 0; i < len(s.supportedMechanisms); i ++ {
+			buffer.WriteString("<mechanism>"+s.supportedMechanisms[i]+"</mechanism>")
+		}
+		buffer.WriteString("</mechanisms>")
+	}
+
+	buffer.WriteString("</stream:features>")
+	return buffer.String()
+}
 
 //qop must present as auth: just support auth in gxmpp
 //algorithm support md5-sess
@@ -621,13 +667,3 @@ func saslError(name string) string {
 }
 
 
-func _mechanismBuilder(mechanisms []string) string {
-	var buffer bytes.Buffer
-	buffer.WriteString("<stream:features>"+
-     		"<mechanisms xmlns='urn:ietf:params:xml:ns:xmpp-sasl'>")
-	for i := 0; i < len(mechanisms); i ++ {
-		buffer.WriteString("<mechanism>"+mechanisms[i]+"</mechanism>")
-	}
-   	buffer.WriteString("</mechanisms></stream:features>")
-   	return buffer.String()
-}
