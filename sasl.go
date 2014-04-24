@@ -62,8 +62,6 @@ func (s *Sasl) talking() error {
 	_, err := fmt.Fprint(s.session.w, mechanismsStreamFeature)
 	if err != nil { return err }
 
-	err: = starttls()
-	if err != nil { return err }
 	//client will send <auth/>
 	//<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl'
     //     mechanism='xxxx'>base64 encoded</auth>
@@ -113,26 +111,6 @@ func (s *Sasl) talking() error {
    </failure>
 	*/
 	return nil
-}
-
-func (s *Sasl) starttls() error {
-	if !s.srvCfg.UseTls || s.srvCfg.tlsFeatureSuccess {
-		return nil
-	}
-
-	_, ele, err := next(s.session.dec)
-	if err != nil {
-		log.Println(err);
-		return err
-	}
-
-	switch ele.(type) {
-		default:
-			err = errors.New("Expected <starttls> element")
-			log.Println(err)
-			return err
-		case *tlsStartTLS:
-	}
 }
 
 func (s *Sasl) auth_PLAIN(authEle *saslAuth) error {
@@ -540,21 +518,11 @@ func (s *Sasl) gen_nonce() string {
 func (s *Sasl) mechanismBuilder() string {
 	var buffer bytes.Buffer
 	buffer.WriteString("<stream:features>")
-	if (s.srvCfg.UseTls && !s.srvCfg.tlsFeatureSuccess) {
-		buffer.WriteString("<starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'>")
-		buffer.WriteString("<required/>")
-		buffer.WriteString("</starttls>")
-		for i := 0; i < len(s.supportedMechanisms); i ++ {
-			buffer.WriteString("<mechanism>"+s.supportedMechanisms[i]+"</mechanism>")
-		}
-
-	} else {
-		buffer.WriteString("<mechanisms xmlns='urn:ietf:params:xml:ns:xmpp-sasl'>")
-		for i := 0; i < len(s.supportedMechanisms); i ++ {
-			buffer.WriteString("<mechanism>"+s.supportedMechanisms[i]+"</mechanism>")
-		}
-		buffer.WriteString("</mechanisms>")
+	buffer.WriteString("<mechanisms xmlns='urn:ietf:params:xml:ns:xmpp-sasl'>")
+	for i := 0; i < len(s.supportedMechanisms); i ++ {
+		buffer.WriteString("<mechanism>"+s.supportedMechanisms[i]+"</mechanism>")
 	}
+	buffer.WriteString("</mechanisms>")
 
 	buffer.WriteString("</stream:features>")
 	return buffer.String()
