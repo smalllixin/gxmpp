@@ -3,7 +3,9 @@
 package gxmpp
 
 import (
+	"crypto/tls"
 	"fmt"
+	"net"
 )
 
 type Tls struct {
@@ -16,8 +18,8 @@ func NewTls(session *Session) *Tls {
 	return t
 }
 
-func (tls *Tls)talking() error {
-	if tls.srvCfg.tlsFeatureSuccess || !tls.srvCfg.UseTls { return nil }
+func (t *Tls)talking() error {
+	if t.srvCfg.tlsFeatureSuccess || !t.srvCfg.UseTls { return nil }
 	_, err := fmt.Fprint(s.session.w, "<stream:features><starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'></required/></starttls></stream:features>") // support mechanisms needed
 	_, ele, err := next(s.session.dec)
 	if err != nil {
@@ -36,9 +38,19 @@ func (tls *Tls)talking() error {
 	}
 
 	fmt.Fprint(s.session.w, "<proceed xmlns='urn:ietf:params:xml:ns:xmpp-tls'/>")
-	starttlsnego()
+	starttls()
 }
 
-func (tls *Tls)starttlsnego() error {
+func (t *Tls)starttls() error {
+	cer, err := tls.LoadX509KeyPair(tls.srvCfg.TlsCertFile, tls.srvCfg.TlsKeyFile)
 
+	if err !=  nil {
+		log.Println(err)
+		return err
+	}
+
+	tlscfg := &tls.Config{Certificates: []tls.Certificate{cer}}
+	// BUGBUG: net.Conn is interface, reference type, suppose any data transformation from here is using new conn, tls
+	// tls negotiation
+	t.session.conn = tls.Server(t.session.conn, tlscfg)
 }

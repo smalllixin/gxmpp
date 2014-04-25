@@ -13,6 +13,8 @@ type ServerConfig struct {
 	S2SPort string
 	UseTls bool
 	Host string //the server host. If don't want to valid it. Leave it alone.
+	TlsCertFile string
+	TlsKeyFile string
 
 	//default port 5223 listen the client use SSL connected in directly.
 }
