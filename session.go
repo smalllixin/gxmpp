@@ -54,6 +54,18 @@ func NewSession(srv *Server, conn net.Conn) *Session{
 	return s
 }
 
+func (s *Session) setConn(conn net.Conn) {
+	s.conn = conn
+	if s.srv.cfg.DebugEnable {
+		s.dec = xml.NewDecoder(readTunnel{s.conn, os.Stdout})
+		s.w = writeTunnel{s.conn, os.Stdout}
+	} else {
+		s.dec = xml.NewDecoder(s.conn)
+		s.w = s.conn
+	}
+	s.enc = xml.NewEncoder(s.conn)
+}
+
 func (s *Session) Talking() {
 	defer func() {
 		s.conn.Close()
@@ -96,24 +108,18 @@ func (s *Session) talkingFeatures() error {
 
 	TBD features talking loop
 	*/
-	if !s.tlsFeatureSuccess && s.srv.cfg.UseTls {
-		//send madatory-negotitaion tls feature
-		_, err := fmt.Fprint(s.w, "<stream:features><starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'>"+
-       				"<required/>"+
-     				"</starttls>"+
-   					"</stream:features>")
-		if err != nil { return err }
-	} else {
-		sasl := NewSasl(s)
-		if err := sasl.talking(); err != nil { return err }
+	tls := NewTls(s)
+	if err := tls.talking(); err != nil { return err } 
 
-		fmt.Println("=====in loop====")
-		for {
-			_,err := nextStart(s.dec)
-			if err != nil {
-				fmt.Println("=====in loop error====")
-				return err
-			}
+	sasl := NewSasl(s)
+	if err := sasl.talking(); err != nil { return err }
+
+	fmt.Println("=====in loop====")
+	for {
+		_,err := nextStart(s.dec)
+		if err != nil {
+			fmt.Println("=====in loop error====")
+			return err
 		}
 	}
 	return nil

@@ -41,14 +41,18 @@ TBD: mess error handle
 type Sasl struct {
 	session *Session
 	srvCfg *ServerConfig
-	supportedMechanisms []string
+}
+
+var saslSupportedMechanisms = []string {
+	"PLAIN",
+	"SCRAM-SHA-1",
+	"DIGEST-MD5",
 }
 
 func NewSasl(session *Session) *Sasl {
 	s := new(Sasl)
 	s.session = session
 	s.srvCfg = session.srv.cfg
-	s.supportedMechanisms = []string {"PLAIN", "SCRAM-SHA-1", "DIGEST-MD5"}
 	return s
 }
 
@@ -58,7 +62,7 @@ func (s *Sasl) talking() error {
 		supportMechanisms = append(supportMechanisms, "PLAIN")
 	}
 	*/
-	mechanismsStreamFeature := mechanismBuilder()
+	mechanismsStreamFeature := s.mechanismBuilder()
 	_, err := fmt.Fprint(s.session.w, mechanismsStreamFeature)
 	if err != nil { return err }
 
@@ -67,6 +71,7 @@ func (s *Sasl) talking() error {
     //     mechanism='xxxx'>base64 encoded</auth>
 	_, ele, err := next(s.session.dec)
 	if err != nil {
+		fmt.Println("next err")
 		log.Println(err)
 		return err
 	}
@@ -519,8 +524,8 @@ func (s *Sasl) mechanismBuilder() string {
 	var buffer bytes.Buffer
 	buffer.WriteString("<stream:features>")
 	buffer.WriteString("<mechanisms xmlns='urn:ietf:params:xml:ns:xmpp-sasl'>")
-	for i := 0; i < len(s.supportedMechanisms); i ++ {
-		buffer.WriteString("<mechanism>"+s.supportedMechanisms[i]+"</mechanism>")
+	for i := 0; i < len(saslSupportedMechanisms); i ++ {
+		buffer.WriteString("<mechanism>"+saslSupportedMechanisms[i]+"</mechanism>")
 	}
 	buffer.WriteString("</mechanisms>")
 
